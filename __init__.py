@@ -1,17 +1,23 @@
 import requests
 import decimal
 from decimal import Decimal
+import pandas as pd
 
 
 class ZhangTing:
+    __url = 'http://quotes.money.163.com/cjmx/{1}/{2}/{0}.xls'
+
     def __init__(self, info):
         self.__info = info
-        self.__detail_url = 'http://quotes.money.163.com/cjmx/{1}/{2}/{0}.xls'
-
-    def fill_detail(self, symbol):
-        url = self.__detail_url.format(symbol, '2019', '20190219')
+        url = self.__url.format(info['CODE'], '2019', '20190219')
         with requests.get(url) as response:
-            return response.text
+            with open('tmp.xls', 'wb') as f:
+                f.write(response.content)
+            self.__df = pd.read_excel('tmp.xls')
+
+    @property
+    def detail(self):
+        return self.__df
 
 
 class Searcher:
@@ -41,7 +47,7 @@ class Searcher:
             ret = []
             for info in result['list']:
                 if info['PRICE'] == self.ztj(info['YESTCLOSE']):
-                    ret.append(info)
+                    ret.append(ZhangTing(info))
                 else:
                     if info['PERCENT'] > 0.09:
                         continue
