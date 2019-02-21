@@ -43,11 +43,15 @@ class ZhangTing:
         del self.__info['MFRATIO']
     
     @classmethod
-    def ztj(self, p):
-        dc = Decimal(p)
-        d = dc * Decimal(0.1)
+    def ztj(cls, price):
+        return cls.cal_price(price, 0.1)
+
+    @classmethod
+    def cal_price(cls, price, percent):
+        dc = Decimal(price)
+        d = dc * Decimal(percent)
         ret = dc + d
-        return float(ret.quantize(Decimal('0.00', self.__context)))
+        return float(ret.quantize(Decimal('0.00', cls.__context)))
     
     def analyze_detail(self):
         y_close = self.__info['YESTCLOSE']
@@ -55,27 +59,48 @@ class ZhangTing:
         close = self.__info['PRICE']
         ztj = self.ztj(y_close)
         self.__info['IS_OPEN_ZT'] = _open == ztj
-        self.__info['IS_CLOSE_ZT'] = close ==ztj
+        self.__info['IS_CLOSE_ZT'] = close == ztj
+# 计算首次上板时间
         scsb = None
-        zhsb = None
         for index in self.__detail.index:
             if self.__detail['成交价'][index] == ztj:
                 self.__info['SCSB'] = self.__detail['成交时间'][index]
                 scsb = index
                 break
-        for index in reversed(self.__detail.index):
-            if self.__detail['成交价'][index] == ztj:
-                self.__info['ZHSB'] = self.__detail['成交时间'][index]
-                zhsb = index
-                break
+# 计算是否一次封死
         ycfs = True
-        for index in self.__detail.index[scsb:]:
+        for index in self.__detail.index[scsb+1:]:
             if self.__detail['成交价'][index] != ztj:
                 ycfs = False
                 break
         self.__info['YCFS'] = ycfs
-                
-        
+# 计算首次开板时间
+        sckb = None
+        if not ycfs:
+            for index in self.__detail.index[scsb+1:]:
+                if self.__detail['成交价'][index] != ztj:
+                    self.__info['SCKB'] = self.__detail['成交时间'][index]
+                    sckb = index
+                    break
+        else:
+            self.__info['SCKB'] = None
+# 计算最后一次回封时间
+        zhhf = None
+        if self.__info['IS_CLOSE_ZT']:
+            for index in reversed(self.__detail.index):
+                if self.__detail['成交价'][index] == ztj:
+                    continue
+                else:
+                    self.__info['ZHHF'] = self.__detail['成交时间'][index+1]
+        else:
+            self.__info['ZHHF'] = None
+# 统计筹码分布
+        hp = self.cal_price(y_close, 0.07)
+        sum_vol = self.__detail['成交量'].sum()
+        hp_vol = self.__detail['成交量'][self.__detail['成交价'] >= hp].sum()
+
+
+
 class Searcher:
     def __init__(self):
         self.__sort_url = "http://quotes.money.163.com/hs/service/diyrank.php?" \
